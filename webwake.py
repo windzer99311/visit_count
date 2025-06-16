@@ -1,11 +1,25 @@
 import streamlit as st
+import sqlite3
 import socket
-import os
+from datetime import datetime
 
-VISITOR_FILE = "visitors.txt"
+DB_FILE = "visitors.db"
 
+# Initialize DB
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS visitors (
+            ip TEXT PRIMARY KEY,
+            timestamp TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Get user IP
 def get_ip():
-    """Try to get the visitor's IP address."""
     try:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
@@ -13,29 +27,33 @@ def get_ip():
     except:
         return "unknown"
 
-def load_visitors():
-    """Load visitor IPs from the file."""
-    if not os.path.exists(VISITOR_FILE):
-        return set()
-    with open(VISITOR_FILE, "r") as file:
-        return set(file.read().splitlines())
-
+# Save visitor if new
 def save_visitor(ip):
-    """Save a new visitor IP."""
-    with open(VISITOR_FILE, "a") as file:
-        file.write(ip + "\n")
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT ip FROM visitors WHERE ip=?', (ip,))
+    if c.fetchone() is None:
+        c.execute('INSERT INTO visitors (ip, timestamp) VALUES (?, ?)', (ip, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
 
-# --- Main App ---
-st.set_page_config(page_title="Visitor Counter", layout="centered")
+# Get total unique visitors
+def get_visitor_count():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM visitors')
+    count = c.fetchone()[0]
+    conn.close()
+    return count
 
-st.title("🌐 Visitor Counter Web App")
+# Main App Logic
+st.set_page_config(page_title="Persistent Visitor Counter")
+st.title("🌐 Persistent Visitor Counter")
 
+init_db()
 ip = get_ip()
-visitors = load_visitors()
+save_visitor(ip)
+count = get_visitor_count()
 
-if ip not in visitors:
-    save_visitor(ip)
-    visitors.add(ip)
-
-st.success(f"🎉 Unique Visitors: {len(visitors)}")
+st.success(f"🎉 Total Unique Visitors: {count}")
 st.write(f"Your IP: `{ip}`")
