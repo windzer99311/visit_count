@@ -1,59 +1,39 @@
 import streamlit as st
 import sqlite3
-import socket
-from datetime import datetime
 
-DB_FILE = "visitors.db"
+DB_FILE = "counter.db"
 
-# Initialize DB
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute('''
-        CREATE TABLE IF NOT EXISTS visitors (
-            ip TEXT PRIMARY KEY,
-            timestamp TEXT
+        CREATE TABLE IF NOT EXISTS counter (
+            id INTEGER PRIMARY KEY,
+            visits INTEGER
         )
     ''')
+    # Initialize with 0 if empty
+    c.execute('SELECT COUNT(*) FROM counter')
+    if c.fetchone()[0] == 0:
+        c.execute('INSERT INTO counter (id, visits) VALUES (1, 0)')
     conn.commit()
     conn.close()
 
-# Get user IP
-def get_ip():
-    try:
-        hostname = socket.gethostname()
-        ip = socket.gethostbyname(hostname)
-        return ip
-    except:
-        return "unknown"
-
-# Save visitor if new
-def save_visitor(ip):
+def increment_counter():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute('SELECT ip FROM visitors WHERE ip=?', (ip,))
-    if c.fetchone() is None:
-        c.execute('INSERT INTO visitors (ip, timestamp) VALUES (?, ?)', (ip, datetime.now().isoformat()))
+    c.execute('UPDATE counter SET visits = visits + 1 WHERE id = 1')
     conn.commit()
+    c.execute('SELECT visits FROM counter WHERE id = 1')
+    visits = c.fetchone()[0]
     conn.close()
+    return visits
 
-# Get total unique visitors
-def get_visitor_count():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('SELECT COUNT(*) FROM visitors')
-    count = c.fetchone()[0]
-    conn.close()
-    return count
-
-# Main App Logic
-st.set_page_config(page_title="Persistent Visitor Counter")
-st.title("🌐 Persistent Visitor Counter")
+# --- Main Streamlit App ---
+st.set_page_config(page_title="Visitor Counter", layout="centered")
+st.title("👋 Welcome to the Site")
 
 init_db()
-ip = get_ip()
-save_visitor(ip)
-count = get_visitor_count()
+count = increment_counter()
 
-st.success(f"🎉 Total Unique Visitors: {count}")
-st.write(f"Your IP: `{ip}`")
+st.success(f"👀 Visitors: {count}")
